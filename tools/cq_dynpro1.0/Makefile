@@ -44,7 +44,8 @@ clean :
 		$(MAKE) TLDEPS= clean ) \
 	    fi \
 	done
-	- /bin/rm -rf bin/*.x tmp
+	- /bin/rm -rf bin/*.x tmp 
+	- /bin/rm -rf src/*~ 
 #	- cd examples/example01; /bin/rm -rf CRASH out.* pch.* sph.* UpdatedAtoms.* ; cd -
 
 tar :
