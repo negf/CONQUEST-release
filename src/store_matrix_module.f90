@@ -929,7 +929,7 @@ contains
   !!
   !!  SOURCE
   !!
-  subroutine grab_InfoMatGlobal(InfoGlob,index,flag_velocity)
+  subroutine grab_InfoMatGlobal(InfoGlob,index,flag_velocity,lnegf)
 
     ! Module usage
     use GenComms, ONLY: inode,ionode,gcopy, my_barrier
@@ -941,13 +941,13 @@ contains
     ! passed variables
     type(matrix_store_global),intent(out) :: InfoGlob
     integer,intent(in), optional :: index
-    logical,intent(in), optional :: flag_velocity
+    logical,intent(in), optional :: flag_velocity,lnegf
 
     ! local variables
     integer :: lun, istat, iglob, ig
     integer :: index_local, index_in_file
     character(len=80) :: filename
-    logical :: flag_velocity_local, flag_MDstep
+    logical :: flag_velocity_local, flag_MDstep,l_grabnegf
     integer :: ni_in_cell_tmp, numprocs_tmp
 
     if(present(flag_velocity)) then
@@ -955,6 +955,10 @@ contains
     else
        flag_velocity_local=.false.
     endif
+
+    
+    l_grabnegf=.false.
+    if(present(lnegf)) l_grabnegf=lnegf
 
     ! check whether members of InfoGlob has been allocated or not.
     if(allocated(InfoGlob%glob_to_node)) call free_InfoMatGlobal(InfoGlob)
@@ -967,7 +971,11 @@ contains
     !Reading  "InfoGlobal.ind***"
     if(inode == ionode) then
        call io_assign(lun)
-       call get_file_name_2rank('InfoGlobal',filename,index_local)
+       if (l_grabnegf) then
+         call get_file_name_2rank('InfoGlobal_negf',filename,index_local)
+       else 
+         call get_file_name_2rank('InfoGlobal',filename,index_local)
+       end if 
        open (lun,file=filename,status='old',iostat=istat)
        if (istat.GT.0) then
           write(io_lun,*) " grab_InfoMatGlobal: Error in opening InfoGlobal: ",filename
@@ -1191,7 +1199,7 @@ contains
   !!    Added InfoGlob in the dummy arguments, and removed n_proc_old
   !!  SOURCE
   !!
-  subroutine grab_matrix2(stub,inode,nfile,InfoMat,InfoGlob,index,n_matrix)
+  subroutine grab_matrix2(stub,inode,nfile,InfoMat,InfoGlob,index,n_matrix,lnegf)
 
     ! Module usage
     use io_module, ONLY: get_file_name, get_file_name_2rank
@@ -1208,6 +1216,7 @@ contains
     type(matrix_store_global) :: InfoGlob
     integer, optional :: index
     integer, optional :: n_matrix
+    logical, optional :: lnegf
 
     ! local variables
     integer :: lun,stat,padzeros,stat_alloc,size,size2,sizeL,i,j,jbeta_alpha,len,ifile,ibeg
@@ -1218,7 +1227,11 @@ contains
     integer :: ispin
     integer :: lun_db
     character(20) :: file_db
+    logical :: l_grabnegf
 
+    l_grabnegf=.false.
+    if (present(lnegf)) l_grabnegf=lnegf
+    
     max_node = InfoGlob%numprocs
 
     index_local=0; if(present(index)) index_local=index
@@ -1250,7 +1263,11 @@ contains
 
           ! Case 1 : Binary Format   2018Oct22 TM -----------------------
           if(flag_MatrixFile_BinaryFormat_Grab) then
-             open (lun,file=file_name,status='old',iostat=stat,form='unformatted')
+             if (l_grabnegf) then
+               open (lun,file=file_name,status='old',access="stream",iostat=stat)
+             else
+               open (lun,file=file_name,status='old',iostat=stat,form='unformatted')
+             end if
              if (stat/=0) call cq_abort('Fail in opening Lmatrix file in Binary.')
              ! Get dimension, allocate arrays and store necessary data.
              read (lun,iostat=stat) proc_id, InfoMat(ifile)%natom_i

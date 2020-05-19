@@ -181,7 +181,12 @@ module global_module
   logical,      dimension(:,:), allocatable :: flag_move_atom  ! Move atoms ?
   integer,      dimension(:),   allocatable :: flag_cdft_atom
   logical :: restart_DM, restart_rho, restart_T, restart_X
-
+  
+! negf --
+  logical restart_Knegf, read_gless, dump_negf_data
+  real(double) :: dx_negf, dy_negf,dz_negf, negf_mul, negf_mur, negf_density_rescale
+  character(256) :: negf_l_elec_dir, negf_r_elec_dir
+  
   integer :: global_maxatomspart ! Maximum atoms per partition, if exceeded, triggers partitioning refinement
 
   integer :: rng_seed
@@ -396,7 +401,15 @@ module global_module
   ! Multisite
   logical :: flag_Multisite
   logical :: flag_LFD
-
+  
+  ! negf 
+  real(double) :: efermi_out(2)
+#ifdef GRIDSOLVER  
+  ! gridsolver
+  logical :: gridsolver_use
+  integer :: gridsolver_select
+  integer :: gridsolver_bc(3)   
+#endif
   ! diagonalise or linear scaling
   logical :: flag_diagonalisation
 

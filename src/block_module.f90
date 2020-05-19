@@ -196,7 +196,7 @@ contains
 
 
     integer:: mx_gedge_tmp,ind_block,nnd, maxtmp, i, cx, cy, cz, cc
-    integer:: minblocks
+    integer:: minblocks,imax,ngrid(3)
 
     integer, dimension(:), allocatable :: blocks_per_proc, proc_block, proc_which_block
 
@@ -244,7 +244,17 @@ contains
        maxtmp = n_grid_z * (n_grid_x*n_grid_y/numprocs + 1)
        if(maxtmp>maxngrid) maxngrid = maxtmp
        call init_group(blocks, maxblocks, mx_gedge_tmp, n_all_blocks, n_pts_in_block, numprocs)
-
+! grid solver
+! slice along direction with most grid points       
+       imax=3
+       if (n_grid_y.gt.n_grid_z) imax=2
+       if (n_grid_x.gt.max(n_grid_y,n_grid_z)) imax=1              
+       
+        ngrid=(/ n_grid_x,n_grid_y,n_grid_z /)            
+        ngrid(imax)=max(ceiling(real(ngrid(imax))/numprocs),3-mod(ngrid(imax)+1,2)) !,3)
+        maxtmp=ngrid(1)*ngrid(2)*ngrid(3)       
+       if (maxtmp>maxngrid) maxngrid=maxtmp
+! grid solver        
        !--- number of blocks on current node
        blocks%ng_on_node(:)=0
        do nnd=1, numprocs

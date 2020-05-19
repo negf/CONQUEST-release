@@ -102,6 +102,7 @@ program Conquest
   use memory_module
   use minimise
   use timer_stdclocks_module
+  use negf_module, only : dump_negf  
   !use output_module
   !use complete_module
 
@@ -136,6 +137,8 @@ program Conquest
   call control_run(fixed_potential, vary_mu, total_energy)
   if (inode == ionode .and. iprint_gen > 0) &
        write (io_lun, '(4x,"Finished control")')
+       
+  if (dump_negf_data) call dump_negf()
 
   call write_mem_use
 

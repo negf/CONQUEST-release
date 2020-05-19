@@ -209,7 +209,8 @@ contains
                                    IPRINT_TIME_THRES3, nspin,       &
                                    spin_factor,                     &
                                    flag_fix_spin_population, &
-                                   flag_neutral_atom, area_SC
+                                   flag_neutral_atom, area_SC,      &
+                                   negf_density_rescale                                
     use block_module,        only: nx_in_block, ny_in_block,        &
                                    nz_in_block, n_pts_in_block
     use group_module,        only: blocks, parts
@@ -413,8 +414,10 @@ contains
     call gsum(grid_electrons)
     ! Scaling factor for renormalizing atomic density
     scale = ne_in_cell/grid_electrons
-
+    
     !write(*,*) "SCALE in atomic_density = ", scale, ne_in_cell, grid_electrons
+
+    negf_density_rescale = scale ! store scaling factor to rescale electrode density
 
     ! Set density if required
     if(flag_set_density) then

@@ -140,7 +140,8 @@ contains
     use minimise,             only: get_E_and_F
     use global_module,        only: runtype, flag_self_consistent, &
                                     flag_out_wf, flag_write_DOS, &
-                                    flag_opt_cell, optcell_method
+                                    flag_opt_cell, optcell_method, &
+                                    restart_Knegf
     use input_module,         only: leqi
     use store_matrix,         only: dump_pos_and_matrices
 
@@ -158,10 +159,13 @@ contains
 
     real(double) :: spr, e_r_OLD
 
+    if (restart_Knegf) return ! negf needs only 1 SCF step done in initialise()
+
 !****lat<$
     call start_backtrace(t=backtrace_timer,who='control_run',&
          where=area,level=backtrace_level,echo=.true.)
 !****lat>$
+    
 
     if ( leqi(runtype,'static') ) then
        if(.NOT.flag_self_consistent.AND.(flag_out_wf.OR.flag_write_DOS)) return

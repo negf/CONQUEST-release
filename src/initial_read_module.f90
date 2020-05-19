@@ -805,7 +805,10 @@ contains
          flag_opt_cell, cell_constraint_flag, flag_variable_cell, &
          cell_en_tol, optcell_method, cell_stress_tol, &
          flag_stress, flag_full_stress, rng_seed, &
-         flag_atomic_stress, flag_heat_flux, flag_DumpMatrices
+         flag_atomic_stress, flag_heat_flux, flag_DumpMatrices, &
+         restart_Knegf, read_gless,dx_negf,dy_negf,dz_negf, dump_negf_data, &
+         gridsolver_select,gridsolver_use,gridsolver_bc, &
+         negf_l_elec_dir,negf_r_elec_dir,negf_mul,negf_mur       
     use dimens, only: GridCutoff,    &
          n_grid_x, n_grid_y, n_grid_z, r_c,         &
          RadiusSupport, RadiusAtomf, RadiusMS, RadiusLD, &
@@ -909,6 +912,10 @@ contains
     use XC, only : flag_functional_type, functional_hartree_fock, functional_hyb_pbe0, &
          flag_different_functional
     use biblio, only: flag_dump_bib
+    
+#ifdef GRIDSOLVER
+    use grid_solver, only: gridsolver_dlmg
+#endif    
 
     !2019/12/27 tsuyoshi
     use density_module,  only: method_UpdateChargeDensity,DensityMatrix,AtomicCharge
@@ -1117,6 +1124,37 @@ contains
     else
        vary_mu = .true.
     end if
+    
+! read negf data       
+       restart_Knegf = fdf_boolean('negf.LoadKnegf',.false.)
+       dump_negf_data = fdf_boolean('negf.SaveHSK',restart_Knegf)       
+       if (restart_Knegf) then
+          read_gless = fdf_boolean('negf.CurrentDensity',.false.)
+          negf_l_elec_dir = fdf_string(256,'negf.left_electrode.dir','.')
+          negf_r_elec_dir = fdf_string(256,'negf.right_electrode.dir','.')
+          negf_mul = fdf_double('negf.mul',0d0)
+          negf_mur = fdf_double('negf.mur',0d0)
+          dx_negf = fdf_double('negf.dx',0d0)
+          dy_negf = fdf_double('negf.dy',0d0)
+          dz_negf = fdf_double('negf.dz',0d0)
+        end if
+       
+! Gridsolver
+       gridsolver_use     = fdf_boolean('Grid.Gridsolver',.false.)
+       if (gridsolver_use) then
+#ifdef GRIDSOLVER       
+         gridsolver_select    = fdf_integer('Grid.Gridsolver_select',gridsolver_dlmg)
+         gridsolver_bc(1)     = fdf_integer('Grid.Gridsolver_bcx',0)
+         gridsolver_bc(2)     = fdf_integer('Grid.Gridsolver_bcy',0)
+         gridsolver_bc(3)     = fdf_integer('Grid.Gridsolver_bcz',0)
+#else
+         write(io_lun,fmt='(A)') "Conquest not compiled with Gridsolver: revert back to FFT solver"
+         gridsolver_use = .false.
+#endif        
+       end if
+
+    
+    
 !!$
 !!$
 !!$

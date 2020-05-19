@@ -1,0 +1,4 @@
+# -*- mode: Makefile -*-
+# $Id: odd.obj,v 1.3 2004/11/12 02:48:41 drb Exp $
+#
+GRIDSOLVER_OBJS = gridsolver_module.o 

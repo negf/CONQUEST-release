@@ -124,6 +124,7 @@ module GenComms
 !!  
   interface exchv ! Exchange data with all processors
      module procedure dcplx_exchv
+     module procedure real_exchv
   end interface
 !!***
 
@@ -1520,6 +1521,75 @@ contains
     timings(2) = timings(2) + t2 - t1
     return
   end subroutine double_gmin
+!!***
+
+!!****f* GenComms/real_exchv *
+!!
+!!  NAME 
+!!   real_exchv
+!!  USAGE
+!! 
+!!  PURPOSE
+!!   Real global exchange routine.  Need to distribute chunks of 
+!!   sendarray to all processors, to be put into recvarray.  The elements
+!!   from psnd(j) to psnd(j+1)-1 should be sent to processor j and 
+!!   prcv(j) to prcv(j+1)-1 in recv array will be received from processor
+!!   j.
+!!  INPUTS
+!! 
+!! 
+!!  USES
+!! 
+!!  AUTHOR
+!!   D.R.Bowler
+!!  CREATION DATE
+!!   06/06/2001
+!!  MODIFICATION HISTORY
+!!
+!!
+!!  real version ! Marius
+!!  SOURCE
+!!
+  subroutine real_exchv(sendarray, index_send, &
+       recvarray, index_recv, size)
+
+    use datatypes
+
+    implicit none
+
+    ! Passed variables
+    integer :: size
+    ! Original integer, dimension(numprocs+1) :: index_send,index_recv
+    integer :: index_send(:),index_recv(:)
+    real(double) :: sendarray(size), recvarray(size)
+
+    ! Local variables
+    integer :: i, ierror
+    integer :: sndcounts(numprocs), rcvcounts(numprocs)
+    integer :: snddisps(numprocs), rcvdisps(numprocs)
+
+    t1 = MPI_wtime()
+
+    ! Set up arguments required for MPI_alltoallv. Note that the
+    ! send and receive displacement arguments to this routine are
+    ! offsets from the start of the arrays, starting at zero (not 
+    ! array indices starting at 1).
+    do i = 1, numprocs
+       sndcounts(i) = index_send(i+1) - index_send(i)
+       rcvcounts(i) = index_recv(i+1) - index_recv(i)
+       snddisps(i) = index_send(i) - 1
+       rcvdisps(i) = index_recv(i) - 1
+    enddo
+
+    call MPI_alltoallv( sendarray, sndcounts, snddisps, MPI_double, &
+         recvarray, rcvcounts, rcvdisps, MPI_double, &
+         MPI_comm_world, ierror )
+    if ( ierror /= MPI_success ) &
+         call cq_abort('dcplx_exch: error in alltoallv')
+    t2 = MPI_wtime()
+    timings(13) = timings(13) + (t2-t1)
+    return
+  end subroutine real_exchv
 !!***
 
 !!****f* GenComms/dcplx_exchv *

@@ -579,7 +579,7 @@ contains
                                            nspin, spin_factor,         &
                                            flag_pcc_global, area_ops,  &
                                            exx_alpha, exx_niter, exx_siter, &
-                                           flag_neutral_atom
+                                           flag_neutral_atom, gridsolver_use
      
     use XC,                          only: get_xc_potential
     use GenBlas,                     only: copy, axpy, dot, rsum
@@ -612,6 +612,10 @@ contains
     use fft_module,                  only: fft3, hartree_factor,       &
                                            z_columns_node, i0
     use io_module,                   only: dump_locps
+    
+#ifdef GRIDSOLVER
+    use grid_solver,                 only: get_hartree_gridsolver
+#endif
 
     implicit none
 
@@ -626,7 +630,7 @@ contains
     real(double) :: fften, electrons_tot, exx_tmp, temp_stress
     logical     , dimension(4)    :: dump_pot
     real(double), dimension(:),   allocatable :: xc_epsilon ! energy_density of XC
-    real(double), dimension(:),   allocatable :: h_potential
+    real(double), allocatable, save :: h_potential(:)
     real(double), dimension(:),   allocatable :: rho_tot
     real(double), dimension(:,:), allocatable :: xc_potential
     real(double), dimension(:,:), allocatable :: density_wk ! rho + density_pcc
@@ -643,11 +647,19 @@ contains
     end if
 
     
-    allocate(xc_epsilon(size), h_potential(size), rho_tot(size), &
+    allocate(xc_epsilon(size), rho_tot(size), &
              xc_potential(size,nspin), STAT=stat)
     if (stat /= 0) &
          call cq_abort("get_h_on_atomfns: Error allocating mem:", size, nspin)
-    call reg_alloc_mem(area_ops, (3+nspin)*size, type_dbl)
+    call reg_alloc_mem(area_ops, (2+nspin)*size, type_dbl)
+    
+    if (.not.allocated(h_potential)) then
+      allocate(h_potential(size),STAT=stat)
+      if (stat /= 0) &
+         call cq_abort("get_h_on_atomfns: Error allocating mem:", size, nspin)      
+      call reg_dealloc_mem(area_ops, size, type_dbl)
+      h_potential=zero
+    end if    
     
     !call dump_locps(pseudopotential,size,inode)
     !allocate(chdenr(size), locpotr(size), STAT=stat)
@@ -673,8 +685,7 @@ contains
     !deallocate(chdenr, locpotr, STAT=stat)
     !
     !
-    ! first initialise some arrays
-    h_potential = zero
+    ! first initialise some arrays    
     do spin = 1, nspin
        gridfunctions(H_on_atomfns(spin))%griddata = zero
        potential(:,spin)    = zero
@@ -702,16 +713,36 @@ contains
     !
     ! now calculate the hartree potential on the grid
     if(flag_neutral_atom) then
-       call hartree(drho_tot, h_potential, maxngrid, hartree_energy_drho)
+        if (gridsolver_use) then
+#ifdef GRIDSOLVER
+          call get_hartree_gridsolver(drho_tot,h_potential)
+          hartree_energy_drho = &
+              dot(n_my_grid_points, h_potential, 1, drho_tot, 1) * &
+              grid_point_volume*(0.5d0)       
+          call gsum(hartree_energy_drho)         
+#endif          
+       else     
+          call hartree(drho_tot, h_potential, maxngrid, hartree_energy_drho)
        ! At this point, hartree_stress should be correct
        ! get the pseudopotential energy
+       end if
        hartree_energy_drho_atom_rho = &
             dot(n_my_grid_points, h_potential, 1, density_atom, 1) * &
             grid_point_volume
        call gsum(hartree_energy_drho_atom_rho)
        delta_E_hartree = zero
     else
-       call hartree(rho_tot, h_potential, maxngrid, hartree_energy_total_rho)
+       if (gridsolver_use) then
+#ifdef GRIDSOLVER
+          call get_hartree_gridsolver(rho_tot,h_potential)
+          hartree_energy_total_rho = &
+              dot(n_my_grid_points, h_potential, 1, rho_tot, 1) * &
+              grid_point_volume*(0.5d0)
+          call gsum(hartree_energy_total_rho)
+#endif                
+       else    
+          call hartree(rho_tot, h_potential, maxngrid, hartree_energy_total_rho)
+       end if
        !
        !
        ! correction term
@@ -862,9 +893,14 @@ contains
     endif
     !
     !
-    deallocate(xc_epsilon, h_potential, rho_tot, xc_potential, STAT=stat)
+    deallocate(xc_epsilon, rho_tot, xc_potential, STAT=stat)
     if (stat /= 0) call cq_abort("get_h_on_atomfns: Error deallocating mem")
-    call reg_dealloc_mem(area_ops, (3+nspin)*size, type_dbl)
+    call reg_dealloc_mem(area_ops, (2+nspin)*size, type_dbl)
+#ifndef GRIDSOLVER
+    deallocate(h_potential,STAT=stat)
+    if (stat /= 0) call cq_abort("get_h_on_atomfns: Error deallocating mem")
+    call reg_dealloc_mem(area_ops, size, type_dbl)
+#endif    
 
     ! for Neutral atom potential
     if( flag_neutral_atom ) then

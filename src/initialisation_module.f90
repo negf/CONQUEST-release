@@ -322,7 +322,9 @@ contains
                                       iprint_gen, flag_perform_cDFT,   &
                                       nspin,                  &
                                       glob2node, flag_XLBOMD,          &
-                                      flag_neutral_atom, flag_diagonalisation
+                                      flag_neutral_atom, flag_diagonalisation,&
+                                      gridsolver_use, gridsolver_bc,   &
+                                      gridsolver_select                        
     use memory_module,          only: reg_alloc_mem, reg_dealloc_mem,  &
                                       type_dbl, type_int
     use group_module,           only: parts
@@ -373,6 +375,10 @@ contains
     use UpdateInfo,             ONLY: make_glob2node
     use XLBOMD_module,          ONLY: immi_XL
     use DiagModule,             only: init_blacs_pg, init_scalapack_format
+    
+#ifdef GRIDSOLVER
+    use grid_solver,            only: gridsolver_init,set_grid_map
+#endif    
     
     implicit none
 
@@ -1104,7 +1110,7 @@ contains
          flag_out_wf, wf_self_con, &
          flag_write_DOS, flag_neutral_atom, &
          atomf, sf, flag_LFD, nspin_SF, flag_diagonalisation, &
-         ne_in_cell
+         ne_in_cell, restart_Knegf
     use ion_electrostatic,   only: ewald, screened_ion_interaction
     use S_matrix_module,     only: get_S_matrix
     use GenComms,            only: my_barrier,end_comms,inode,ionode, &
@@ -1130,6 +1136,7 @@ contains
     use support_spec_format, only: read_option
     use multisiteSF_module,  only: initial_SFcoeff
     use initial_read,        only: index_MatrixFile
+    use negf_module, only: load_knegf    
 
     implicit none
 
@@ -1339,6 +1346,15 @@ contains
        call dispersion_D2
     end if
     call my_barrier
+
+! negf restart, i.e. read Knegf do 1 SCF step    
+    if (restart_Knegf) then      
+      find_chdens = .false.
+      restart_DM = .true.    
+      flag_self_consistent = .false.
+      call load_knegf()
+    end if    
+    
 !!$
 !!$
 !!$
@@ -1438,6 +1454,8 @@ contains
        if (flag_out_wf.OR.flag_write_DOS) then
           wf_self_con=.true.
        endif
+
+       if (restart_Knegf) return  ! no need to Diagonalize H for negf calculation
 
        if ( .not. restart_DM ) then
           record  = .false.   

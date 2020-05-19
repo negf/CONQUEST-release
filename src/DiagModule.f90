@@ -486,7 +486,7 @@ contains
          out_wf, n_DOS, E_DOS_max, E_DOS_min, flag_write_DOS, sigma_DOS, &
          flag_write_projected_DOS, flag_normalise_pDOS, flag_pDOS_angmom, flag_pDOS_lm, &
          E_wf_min, E_wf_max, flag_wf_range_Ef, &
-         flag_SpinDependentSF
+         flag_SpinDependentSF,efermi_out
     use GenComms,        only: my_barrier, cq_abort, mtime, gsum, myid
     use ScalapackFormat, only: matrix_size, proc_rows, proc_cols,     &
          block_size_r,       &
@@ -798,6 +798,7 @@ contains
        ! Find Fermi level, given the eigenvalues at all k-points (in w)
        call findFermi(electrons, w, matrix_size, nkp, Efermi, occ)
     end if ! DeltaSCF localised excitation
+    efermi_out=EFermi
     ! Now write out eigenvalues and occupancies
     if (iprint_DM == 2 .AND. myid == 0) then
        bandE = zero
