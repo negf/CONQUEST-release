@@ -9,7 +9,7 @@ LINKFLAGS=
 ARFLAGS=
 
 # Compilation flags
-COMPFLAGS= -O2 -g -traceback -fpp $(XC_COMPFLAGS)
+COMPFLAGS= -O2 -g -traceback -fpp $(XC_COMPFLAGS) 
 COMPFLAGS_F77= $(COMPFLAGS)
 
 # Set BLAS and LAPACK libraries

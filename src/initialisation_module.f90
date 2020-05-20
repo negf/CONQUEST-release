@@ -505,6 +505,12 @@ contains
     call my_barrier()
     if (inode == ionode .and. iprint_init > 1) &
          write (io_lun, *) 'Completed associate_fn_on_grid()'
+         
+! gridsolver:
+    if (gridsolver_use) then
+      call set_grid_map()
+      call gridsolver_init(gridsolver_select,gridsolver_bc)  
+    end if          
 
     ! The FFT requires the data to be reorganised into columns parallel to
     ! each axis in turn. The data for this organisation is help in map.inc,

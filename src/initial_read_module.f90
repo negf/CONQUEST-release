@@ -1128,7 +1128,7 @@ contains
 ! read negf data       
        restart_Knegf = fdf_boolean('negf.LoadKnegf',.false.)
        dump_negf_data = fdf_boolean('negf.SaveHSK',restart_Knegf)       
-       if (restart_Knegf) then
+       if (restart_Knegf.or.dump_negf_data) then
           read_gless = fdf_boolean('negf.CurrentDensity',.false.)
           negf_l_elec_dir = fdf_string(256,'negf.left_electrode.dir','.')
           negf_r_elec_dir = fdf_string(256,'negf.right_electrode.dir','.')
