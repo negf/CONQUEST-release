@@ -454,7 +454,7 @@ module negf_module
         cov_resid_pul=>resid_pul
       end if
 
-      if (1.eq.1) then !((mod(niter+1,kmix).ne.0).and.(niter.ne.0)) then
+      if (niter.ne.0)) then !((mod(niter+1,kmix).ne.0).and.(niter.ne.0)) then
         if (inode.eq.ionode) write(io_lun,*) "do pulay mixing ",mod(niter+1,2)
         ! in out
         call  update_pulay_history_negf(iPulay,density, rho1, &
