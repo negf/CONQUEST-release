@@ -735,7 +735,7 @@ module grid_solver
         pot3=-(pot3)/(4d0*pi)
 
         res=0d0
-
+if (1.eq.2) then
         tol=1e-6
 
         call system_clock(counti,count_rate)
@@ -750,15 +750,15 @@ module grid_solver
        &v_iterations=(/ 2,1 /)*8,&
        &omega_sor=1.9d0,&
        &use_pot_in=.true.,res=res,ierror=ierr)
-
-        tol=1e-11 ! i think this could be reduced.
+end if
+        tol=1e-9 ! i think this could be reduced.
         call dl_mg_solver(eps=eps, eps_mid=eps_rel, alpha=1d0, rho=rho3, &
        &pot=pot3, fd_order=4,	use_damping=.false., &
        &tol_res_rel=tol,&
        &tol_res_abs=tol,&
        &tol_pot_rel=tol,&
        &tol_pot_abs=tol,&
-       &max_iters_defco=100,&
+       &max_iters_defco=512,&
        &v_iterations=(/ 2,1 /)*8,&
        &omega_sor=1.9d0,&
        &use_pot_in=.true.,res=res,ierror=ierr)

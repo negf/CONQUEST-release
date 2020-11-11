@@ -251,7 +251,8 @@ module DiagModule
   ! Buffer for sending data
   complex(double_cplx), dimension(:,:),   allocatable :: SendBuffer
   ! Data type that stores details of where to put and where to get elements
-  type(DistributeData) :: DistribH, DistribS
+  type(DistributeData), target :: DistribH ! this will save 1/2 of the memory. should work as long as rangeH=rangeS 
+  type(DistributeData), pointer :: DistribS
 
   ! Fermi Energy
   real(double), dimension(2) :: Efermi
@@ -4479,8 +4480,9 @@ contains
     call PrepareRecv(DistribH)
     call PrepareSend(Hrange, DistribH)
     ! For Overlap
-    call PrepareRecv(DistribS)
-    call PrepareSend(Srange, DistribS)
+!~     call PrepareRecv(DistribS)
+!~     call PrepareSend(Srange, DistribS)
+    DistribS=>DistribH    
 
   end subroutine init_scalapack_format
   !!***
@@ -4518,24 +4520,25 @@ contains
 
     deallocate(CC_to_SC, STAT=stat)
     if(stat/=0) call cq_abort("ScalapackFormat: Could not dealloc CC2SC",stat)    
-    ! For S
-    do i = 1, size(DistribS%images, 3)
-       do j = 1, size(DistribS%images, 2)
-          do k = 1, size(DistribS%images, 1)
-             if (DistribS%images(k,j,i)%n_elements > 0) then
-                deallocate(DistribS%images(k,j,i)%where, STAT=stat)
-                if (stat /= 0) &
-                     call cq_abort('endDiag: failed to deallocate (2)', stat)
-             end if
-          end do
-       end do
-    end do
-    deallocate (DistribS%images, STAT=stat)
-    if (stat /= 0) call cq_abort('endDiag: failed to deallocate (2)', stat)
-    deallocate (DistribS%num_rows, DistribS%start_row, DistribS%send_rows, &
-         DistribS%firstrow, STAT=stat)
-    if (stat /= 0) call cq_abort('endDiag: failed to deallocate (2a)', stat)
-    call reg_dealloc_mem(area_DM, 4 * numprocs, type_int)
+!~     ! For S
+!~     do i = 1, size(DistribS%images, 3)
+!~        do j = 1, size(DistribS%images, 2)
+!~           do k = 1, size(DistribS%images, 1)
+!~              if (DistribS%images(k,j,i)%n_elements > 0) then
+!~                 deallocate(DistribS%images(k,j,i)%where, STAT=stat)
+!~                 if (stat /= 0) &
+!~                      call cq_abort('endDiag: failed to deallocate (2)', stat)
+!~              end if
+!~           end do
+!~        end do
+!~     end do
+!~     deallocate (DistribS%images, STAT=stat)
+!~     if (stat /= 0) call cq_abort('endDiag: failed to deallocate (2)', stat)
+!~     deallocate (DistribS%num_rows, DistribS%start_row, DistribS%send_rows, &
+!~          DistribS%firstrow, STAT=stat)
+!~     if (stat /= 0) call cq_abort('endDiag: failed to deallocate (2a)', stat)
+!~     call reg_dealloc_mem(area_DM, 4 * numprocs, type_int)
+    nullify(DistribS)    
     ! For H
     do i = 1, size(DistribH%images, 3)
        do j = 1, size(DistribH%images, 2)

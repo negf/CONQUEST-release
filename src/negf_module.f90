@@ -350,6 +350,9 @@ module negf_module
       call gcopy(npulay)
       call gcopy(niter)
 
+      write(io_lun,fmt='(A,i8)') "niter ",niter
+      write(io_lun,fmt='(A,i8)') "npulay ",npulay
+      write(io_lun,fmt='(A,i8)') "ipulay ",ipulay
 
 
       do i=1,npulay
@@ -454,8 +457,8 @@ module negf_module
         cov_resid_pul=>resid_pul
       end if
 
-      if (niter.ne.0)) then !((mod(niter+1,kmix).ne.0).and.(niter.ne.0)) then
-        if (inode.eq.ionode) write(io_lun,*) "do pulay mixing ",mod(niter+1,2)
+      if (niter.ge.2)) then !((mod(niter+1,kmix).ne.0).and.(niter.ne.0)) then
+        if (inode.eq.ionode) write(io_lun,*) "do pulay mixing "
         ! in out
         call  update_pulay_history_negf(iPulay,density, rho1, &
                                   rho_pul, resid_pul, k_resid_pul,     &
@@ -465,7 +468,7 @@ module negf_module
                                 resid_pul, k_resid_pul,     &
                                 cov_resid_pul)
       else
-        if (inode.eq.ionode) write(io_lun,*) "do linear mixing ",mod(niter+1,2)
+        if (inode.eq.ionode) write(io_lun,*) "do linear mixing "
         rho_pul(1:n_my_grid_points,iPulay,1) = density(1:n_my_grid_points,1)
         resid_pul(1:n_my_grid_points,ipulay,1)= rho1(1:n_my_grid_points,1)-density(1:n_my_grid_points,1)
         k_resid_pul(1:n_my_grid_points,ipulay,1)=resid_pul(1:n_my_grid_points,ipulay,1)
@@ -515,6 +518,10 @@ module negf_module
 
 
       if (inode.eq.ionode) then
+        if (niter.eq.0) then
+          ipulay=0
+          npulay=0
+        end if      
         niter=niter+1
         ipulay=ipulay+1
         if (ipulay.gt.maxpulaySC) ipulay=1
