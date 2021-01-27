@@ -242,7 +242,7 @@ contains
                                       flag_neutral_atom, flag_stress, &
                                       rcellx, rcelly, rcellz, &
                                       flag_atomic_stress, non_atomic_stress, &
-                                      flag_heat_flux
+                                      flag_heat_flux, runtype
     use density_module,         only: get_electronic_density, density, &
                                       build_Becke_weight_forces
     use functions_on_grid,      only: atomfns, H_on_atomfns
@@ -531,7 +531,7 @@ contains
           if(flag_neutral_atom_projector) &
                tot_force(j,i) = tot_force(j,i) + NA_force(j,i)
           ! Zero force on fixed atoms
-          if (.not. flag_move_atom(j,i)) then
+          if ((.not. flag_move_atom(j,i)) .and. (runtype.ne.'md')) then
              tot_force(j,i) = zero
           end if
           if (abs (tot_force(j,i)) > max_force) then
@@ -1248,7 +1248,7 @@ contains
                      i = bundle%ig_prim(iprim)
                      do isf = 1, natomf_species(bundle%species(iprim))
                         ! only accumulate phi-pulay force 3 times in total (not 9)
-                        if (flag_stress .and. flag_full_stress) then
+                        if (flag_full_stress) then
                            if (dir1 == dir2) then
                               p_force(dir1, i) = p_force(dir1, i) - &
                                  return_matrix_value(mat_tmp, np, ni, 0, 0, isf, isf, 1)
@@ -3150,6 +3150,7 @@ contains
   subroutine matrix_diagonal_stress(matA, matB, stress, range, inode, diagonal)
 
     use datatypes
+    use global_module, only: atomic_stress
     use primary_module, only : bundle
     use matrix_module, only: matrix, matrix_halo
     use matrix_data, only : mat, halo

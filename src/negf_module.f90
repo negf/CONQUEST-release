@@ -25,6 +25,7 @@ module negf_module
       use set_bucket_module,           only: rem_bucket, atomf_H_atomf_rem ,atomf_atomf_rem
       use functions_on_grid,          only: atomfns
       use calc_matrix_elements_module, only: get_matrix_elements_new
+      use negf_output_module
         
       implicit none
       
@@ -87,6 +88,7 @@ module negf_module
       use functions_on_grid,          only: atomfns
       use calc_matrix_elements_module, only: get_matrix_elements_new,act_on_vectors_new
       use species_module, ONLY : nsf_species, species_label,species
+      use negf_output_module
       
       
         
@@ -140,7 +142,7 @@ module negf_module
             
       do ixyz=1,3  
         if (di_or_dj.eq.1)  then
-          call matrix_product(mat_dS(ixyz),mat_BC,mat_ABC,mult(S_TH_H))        
+          call matrix_product(mat_dS(ixyz),mat_BC,mat_ABC,mult(S_TH_H))
         else if (di_or_dj.eq.2) then
           call matrix_product(mat_BC,mat_dS(ixyz),mat_ABC,mult(TH_S_H))        
         end if
@@ -171,11 +173,6 @@ module negf_module
       implicit none
       
       integer :: iunit,ic,ierr,maxijk(3)
-      
-      if (ionode.eq.inode) then
-        open(newunit=iunit,file="sys_info.dat",action="write",status="replace")
-        close(iunit)
-      end if
     
       call get_mat(1,ic,maxijk)
       call get_sysinfo(1,ic,maxijk)
@@ -236,7 +233,7 @@ module negf_module
                                   atom_coord_diff, rcellx, rcelly, rcellz,&
                                   read_gless,ne_in_cell,io_lun, &
                                   flag_pcc_global, spin_factor, &
-                                  negf_density_rescale
+                                  negf_density_rescale, fix_elec
       use GenComms,         only: my_barrier,end_comms,inode,ionode,&
                                   cq_abort,gcopy,gmax,gsum
       use density_module,   only: get_electronic_density, density,density_atom,&
@@ -312,14 +309,15 @@ module negf_module
         stop
       end if
 
-
-      if (flag_pcc_global) then
-        call fix_densities_negf("density_pcc_l.dat","density_pcc_r.dat",density_pcc,1d0)
-      end if
-
-      if (flag_neutral_atom) then
-        if (inode.eq.ionode) write(io_lun,*) "negf_density_rescale ",negf_density_rescale
-        call fix_densities_negf("density_atom_l.dat","density_atom_r.dat",density_atom,negf_density_rescale)
+      if (fix_elec) then
+        if (flag_pcc_global) then
+          call fix_densities_negf("density_pcc_l.dat","density_pcc_r.dat",density_pcc,1d0)
+        end if
+  
+        if (flag_neutral_atom) then
+          if (inode.eq.ionode) write(io_lun,*) "negf_density_rescale ",negf_density_rescale
+          call fix_densities_negf("density_atom_l.dat","density_atom_r.dat",density_atom,negf_density_rescale)
+        end if
       end if
 
 
@@ -423,7 +421,7 @@ module negf_module
           maxngrid)
       electrons_tot = spin_factor * sum(electrons)
       if (inode == ionode) &
-          write (io_lun, fmt='(A,3f12.6)') 'In Hnegf, electrons: ', electrons_tot,electrons
+          write (io_lun, fmt='(A,3f16.8)') 'In Hnegf, electrons: ', electrons_tot,electrons
 
       pltfile="rho_negf.dat"
       call grid_out_plt(pltfile,"current density",250,rho1(:,1))
@@ -434,7 +432,7 @@ module negf_module
 
 
 
-      call fix_densities_negf("density_l.dat","density_r.dat",rho1(:,1),1d0)
+      if (fix_elec) call fix_densities_negf("density_l.dat","density_r.dat",rho1(:,1),1d0)
 
 
       electrons1=grid_point_volume * &
@@ -442,10 +440,10 @@ module negf_module
       call gsum(electrons1)
       electrons_tot = spin_factor * electrons1
       if (inode == ionode) &
-        write (io_lun, fmt='(A,3f12.6)') 'In Hnegf, electrons after fix: ', electrons_tot,ne_in_cell
+        write (io_lun, fmt='(A,3f16.8)') 'In Hnegf, electrons after fix: ', electrons_tot,ne_in_cell
 
 
-      call fix_densities_negf("density_l.dat","density_r.dat",density(:,1),1d0)
+!~       call fix_densities_negf("density_l.dat","density_r.dat",density(:,1),1d0)
 
 
 
@@ -492,6 +490,7 @@ module negf_module
                             maxngrid, q1)
           end if
         end if ! flag_Kerker
+!~          if (niter.eq.0) A=1d0
           density(:,1)=density(:,1)+A(1)*cov_resid_pul(:,ipulay,1)
       end if
 
@@ -515,6 +514,7 @@ module negf_module
       pltfile=adjustl(pltfile)
       pltfile="resid_pul_"//trim(pltfile)//".dat"
       call grid_out_plt(pltfile,"resid_pul: ",250,resid_pul(:,ipulay,1))
+
 
 
       if (inode.eq.ionode) then
@@ -575,8 +575,8 @@ module negf_module
 
 
 
-        call print_grid_data(4)
-        call print_grid_data(3)
+!~         call print_grid_data(4)
+!~         call print_grid_data(3)
 
 
 
@@ -1402,7 +1402,7 @@ module negf_module
 
         use GenComms, ONLY : my_barrier
         use global_module, ONLY: species_glob, atom_coord,ni_in_cell,rcellx,rcelly,rcellz,&
-      &                         efermi_out
+      &                         efermi_out, ne_spin_in_cell, io_lun
         use primary_module, ONLY: bundle
         use input_module, ONLY: io_assign, io_close
         use species_module, ONLY : nsf_species, species_label
@@ -1413,29 +1413,44 @@ module negf_module
 
 !i  nput:
         integer :: iwhat
-        integer, optional :: icount,maxijk(3)
+        integer, optional :: icount, maxijk(3)
 !l  ocal
-        integer :: i,species_i,n_sup,iosysinfo
+        integer :: i, species_i, n_sup,iosysinfo, ierr
+        real(double) :: ef_in
+        logical :: l_exist, l_read_ef
+        character(256) :: sstatus, instr
 
 
         if (inode.eq.ionode) then
+        
+          l_read_ef = .false.
           call io_assign(iosysinfo)
           if (iwhat.eq.1) then
-            open(unit=iosysinfo,file="sys_info.dat",action="write",status="old")
-          else if (iwhat.eq.2) then
-            open(unit=iosysinfo,file="sys_coord.xyz",action="write",status="replace")
-          end if
-          if (iwhat.eq.1) then
+            inquire(file="sys_info.dat",exist=l_exist) 
+            if (l_exist) then
+              open(unit=iosysinfo,file="sys_info.dat",action="readwrite",status="old")
+              do i = 1, 5
+                read(unit=iosysinfo, fmt=*, iostat=ierr) instr
+                if (ierr.ne.0) exit
+              end do
+              if (ierr.eq.0) read(unit=iosysinfo, fmt=*, iostat=ierr) ef_in, l_read_ef
+              if ((l_read_ef).and.(ierr.eq.0)) efermi_out(1) = ef_in
+              close(iosysinfo)
+            end if  
+            open(unit=iosysinfo,file="sys_info.dat",action="readwrite",status="replace")
             write(unit=iosysinfo,fmt='(3e24.12)') rcellx,0d0,0d0
             write(unit=iosysinfo,fmt='(3e24.12)') 0d0,rcelly,0d0
             write(unit=iosysinfo,fmt='(3e24.12)') 0d0,0d0,rcellz
             if (.not.present(icount).or..not.present(maxijk)) stop ("icount/maxijk not present for iwhat=1")
             write(unit=iosysinfo,fmt='(3i22)') maxijk
-            write(unit=iosysinfo,fmt='(2i22)') icount
-            write(unit=iosysinfo,fmt='(2e24.12)') efermi_out
-            write(unit=iosysinfo,fmt='(e24.12,A)') 0d0,"  this should be removed in the future"
-            write(unit=iosysinfo,fmt='(e24.12,A)') 0d0,"  this should be removed in the future"
+            write(unit=iosysinfo,fmt='(i22)') -1
+            write(unit=iosysinfo,fmt='(e24.12, X, l)') efermi_out(1), .false.
+            write(unit=iosysinfo,fmt='(e24.12, A)') ne_spin_in_cell(1)," alpha spin  electrons"
+            write(unit=iosysinfo,fmt='(e24.12, A)') ne_spin_in_cell(2)," beta spin electrons"
+          else if (iwhat.eq.2) then
+            open(unit=iosysinfo,file="sys_coord.xyz",action="write",status="replace")
           end if
+          
           write(unit=iosysinfo,fmt='(i8)') ni_in_cell
           if (iwhat.eq.2) write(unit=iosysinfo,fmt='(A)') "#  system xyz"
           do i = 1, ni_in_cell
@@ -1459,8 +1474,9 @@ module negf_module
       subroutine get_mat(imat,icount,maxijk)
 
         use global_module,   only: ni_in_cell, numprocs, nspin,io_lun,&
-      &    dx_negf,dy_negf,dz_negf,spin_factor,flag_neutral_atom,ne_in_cell,&
-      &    gridsolver_select,gridsolver_use,gridsolver_bc,flag_pcc_global
+          dx_negf,dy_negf,dz_negf,spin_factor,flag_neutral_atom,ne_in_cell,&
+          gridsolver_select,gridsolver_use,gridsolver_bc,flag_pcc_global, &
+          restart_Knegf, dump_negf_data, flag_self_consistent
 
         use GenComms,        only: inode, ionode,gsum,gmax
         use species_module,  only: species, nsf_species
@@ -1476,6 +1492,7 @@ module negf_module
         use dimens, only: n_my_grid_points
         use hartree_module, only: hartree
         use grid_solver
+        use negf_output_module
 
         implicit none
 !   input :
@@ -1488,11 +1505,6 @@ module negf_module
         character(256) :: pltfile
         real(double) :: electrons(nspin),elec_tot,henergy
 
-        matrixsize = 0 !ni_in_cell*nsf
-        do i = 1, ni_in_cell
-          matrixsize = matrixsize + nsf_species(species(i))
-        end do
-        if (inode.eq.ionode) write(io_lun,*) "matrixsize ",matrixsize
         imd=0
         call write_matinfo('H',matH(1),hrange)
 
@@ -1501,36 +1513,26 @@ module negf_module
         do ispin=1,nspin
 
           if (ispin.eq.1) then
-            call write_mat(matS(ispin),Srange,lunS1,matrixsize,ic,maxijk,"S")
-            icount=max(icount,ic)
-            if (inode.eq.ionode) write(io_lun,*) "S icount",icount
+            call write_mat(matS(ispin),Srange,maxijk,"S")
           end if
 
 
           if (ispin.eq.1) then
-            call write_mat(matK(ispin),Hrange,lunT1,matrixsize,ic,maxijk,"K_u")
-            icount=max(icount,ic)
-            if (inode.eq.ionode) write(io_lun,*) "Kup icount",icount
+            call write_mat(matK(ispin),Hrange,maxijk,"K_u")
           end if
 
 
           if (ispin.eq.2) then
-            call write_mat(matK(ispin),Hrange,lunT2,matrixsize,ic,maxijk,"K_d")
-            icount=max(icount,ic)
-            if (inode.eq.ionode) write(io_lun,*) "Kdn icount",icount
+            call write_mat(matK(ispin),Hrange,maxijk,"K_d")
           end if
 
 
           if (ispin.eq.1) then
-            call write_mat(matH(ispin),Hrange,lunH1,matrixsize,ic,maxijk,"H_u")
-            icount=max(icount,ic)
-            if (inode.eq.ionode) write(io_lun,*) "Hup icount",icount
+            call write_mat(matH(ispin),Hrange,maxijk,"H_u")
           end if
 
           if (ispin.eq.2) then
-            call write_mat(matH(ispin),Hrange,lunH2,matrixsize,ic,maxijk,"H_d")
-            icount=max(icount,ic)
-            if (inode.eq.ionode) write(io_lun,*) "Hdn icount",icount
+            call write_mat(matH(ispin),Hrange,maxijk,"H_d")
           end if
 
         end do
@@ -1540,14 +1542,18 @@ module negf_module
 ! ----  ------------------------------------------------------------------
 ! dump   grid data density and hartree potential ! assuming neutral atoms for now
         call print_grid_data(1)
-        call print_grid_data(2)
+        if (.not.((.not.flag_self_consistent.and.dump_negf_data).or.&
+          (restart_Knegf))) call print_grid_data(2)
 
         pltfile="density_0.dat"
         call grid_out_plt(pltfile,"density_0",250,density(:,1))
 
 
-        pltfile="density_atom.dat"
-        call grid_out_plt(pltfile,"density_atom",250,density_atom)
+        
+        if (flag_neutral_atom) then
+          pltfile="density_atom.dat"
+          call grid_out_plt(pltfile,"density_atom",250,density_atom)
+        end if
 
         if (flag_pcc_global) then
           pltfile="density_pcc.dat"
@@ -1806,9 +1812,9 @@ module negf_module
 
         call MPI_File_Close(iunit,ierr)
       end subroutine write_matinfo
-
-
-      subroutine write_mat(matA,Arange,lun,matrix_size,icount,maxijk,fname,ladd)
+    
+    
+      subroutine write_mat_old(matA,Arange,lun,matrix_size,icount,maxijk,fname,ladd)
   ! ----------------------------------------------------------------------
   !
   !   Write out matrix values with indeces
@@ -2106,6 +2112,10 @@ module negf_module
         ! -----
       end if
 
+      open(newunit=lun,file=trim(fname)//".dat",status="replace",action="write")
+      close(lun)
+
+
       call mpi_barrier(mpi_comm_world,ierr)
 
       do i3=-maxijk(3),maxijk(3)
@@ -2121,6 +2131,7 @@ module negf_module
         icount=0
         do ip=1,numprocs
           if (inode.eq.ip) then
+            open(newunit=lun,file=trim(fname)//".dat",status="old",action="write",position="append")
             maxi=0
             iprim = 0; atom_i = 0
             do np = 1,bundle%groups_on_node ! Loop over primary set partitions
@@ -2177,8 +2188,8 @@ module negf_module
                               rval = mat_p(matA)%matrix(wheremat)
                               icount=icount+1
 
-!                              if (irun.eq.2) write(unit=lun,fmt='(5I7,es45.24e5,5i8)') i1,i2,i3, Kmat(kl),Lmat(kl),rval,atom_i,&
-!                                             atom_j,mat(np,Arange)%n_nab(i),inode,wheremat
+                              if (irun.eq.2) write(unit=lun,fmt='(5I7,es45.24e5,5i8)') i1,i2,i3, Kmat(kl),Lmat(kl),rval,atom_i,&
+                                             atom_j,mat(np,Arange)%n_nab(i),inode,wheremat
 !~                               if (rval.eq.0d0) cycle
                               if (irun.eq.1) then
                                 nzrow(Kmat(kl),i1,i2,i3)=nzrow(Kmat(kl),i1,i2,i3)+1
@@ -2207,7 +2218,7 @@ module negf_module
                         enddo ! k
                      end do ! j
                   end do ! i
-               end if ! End if nm_nodgroup > 0
+               end if ! End if nm_nodgroup > 0               
             end do ! np
 
 
@@ -2228,7 +2239,7 @@ module negf_module
               end do
             end do
           end do
-
+          close(lun)
         end do !ip
 
         do i3=-maxijk(3),maxijk(3)
@@ -2315,7 +2326,7 @@ module negf_module
         stop
       end if
 
-    end subroutine write_mat
+    end subroutine write_mat_old    
 
     subroutine update_pulay_history_negf(iPulay, rho_in, rho_out, &
                                     rho_pul, resid_pul, k_resid_pul,     &
@@ -2396,5 +2407,60 @@ module negf_module
           call cq_abort("update_pulay_history: Error dealloc mem")
 
     end subroutine update_pulay_history_negf
+    
+!~     3 2  1 x 
+!~     1 2  2 x
+!~     2 1  3 x 
+!~     3 1  4 x
+!~     1 1  5 x
+!~     1 3  6 x
+!~     3 3  7 x
+!~     2 2  8 x
+!~     2 3  9 x
+
+!~     1 2  2 x
+!~     1 1  5 x
+!~     1 3  6 x
+!~     2 1  3
+!~     2 2  8
+!~     2 3  9
+!~     3 2  1
+!~     3 1  4
+!~     3 3  7
+
+!~     1 1  5
+!~     1 2  2
+!~     1 3  6
+!~     2 1  3
+!~     2 2  8
+!~     2 3  9
+!~     3 1  4
+!~     3 2  1
+!~     3 3  7
+
+    
+    subroutine sort(n, m, a,  isort)
+      implicit none
+      
+      integer :: n, m, isort, a(n,m)
+      integer :: i, j, ncol, icol, x
+      integer, allocatable :: coltemp(:)
+      
+      
+      allocate(coltemp(m))
+    
+      do i = 2, n
+        coltemp = a(i,:)
+        j = i - 1
+        do while (j .ge. 1)
+            if (a(j,isort) .le. coltemp(isort)) exit
+            a(j + 1,:) = a(j,:)
+            j = j - 1
+        end do
+        a(j + 1,:) = coltemp
+      end do
+      
+    end subroutine  sort
+
 
 end module negf_module

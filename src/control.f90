@@ -141,7 +141,7 @@ contains
     use global_module,        only: runtype, flag_self_consistent, &
                                     flag_out_wf, flag_write_DOS, &
                                     flag_opt_cell, optcell_method, &
-                                    restart_Knegf
+                                    restart_Knegf, dump_negf_data
     use input_module,         only: leqi
     use store_matrix,         only: dump_pos_and_matrices
 
@@ -159,7 +159,8 @@ contains
 
     real(double) :: spr, e_r_OLD
 
-    if (restart_Knegf) return ! negf needs only 1 SCF step done in initialise()
+    if ((restart_Knegf).or. &
+      (.not.flag_self_consistent.and.dump_negf_data)) return ! negf needs only 1 SCF step done in initialise()
 
 !****lat<$
     call start_backtrace(t=backtrace_timer,who='control_run',&

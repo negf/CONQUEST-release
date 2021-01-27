@@ -183,7 +183,7 @@ module global_module
   logical :: restart_DM, restart_rho, restart_T, restart_X
   
 ! negf --
-  logical restart_Knegf, read_gless, dump_negf_data
+  logical restart_Knegf, read_gless, dump_negf_data, fix_elec
   real(double) :: dx_negf, dy_negf,dz_negf, negf_mul, negf_mur, negf_density_rescale
   character(256) :: negf_l_elec_dir, negf_r_elec_dir
   

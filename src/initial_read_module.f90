@@ -806,7 +806,7 @@ contains
          flag_stress, flag_full_stress, rng_seed, &
          flag_atomic_stress, flag_heat_flux, flag_DumpMatrices, &
          restart_Knegf, read_gless,dx_negf,dy_negf,dz_negf, dump_negf_data, &
-         gridsolver_select,gridsolver_use,gridsolver_bc, &
+         gridsolver_select,gridsolver_use,gridsolver_bc, fix_elec, &
          negf_l_elec_dir,negf_r_elec_dir,negf_mul,negf_mur       
     use dimens, only: GridCutoff,    &
          n_grid_x, n_grid_y, n_grid_z, r_c,         &
@@ -1132,9 +1132,10 @@ contains
     end if
     
 ! read negf data       
-       restart_Knegf = fdf_boolean('negf.LoadKnegf',.false.)
+       restart_Knegf = fdf_boolean('negf.LoadKnegf',.false.)       
        dump_negf_data = fdf_boolean('negf.SaveHSK',restart_Knegf)       
        if (restart_Knegf.or.dump_negf_data) then
+          fix_elec = fdf_boolean('negf.FixElectrode',.true.)
           read_gless = fdf_boolean('negf.CurrentDensity',.false.)
           negf_l_elec_dir = fdf_string(256,'negf.left_electrode.dir','.')
           negf_r_elec_dir = fdf_string(256,'negf.right_electrode.dir','.')

@@ -324,7 +324,8 @@ contains
                                       glob2node, flag_XLBOMD,          &
                                       flag_neutral_atom, flag_diagonalisation,&
                                       gridsolver_use, gridsolver_bc,   &
-                                      gridsolver_select                        
+                                      gridsolver_select, dump_negf_data, &
+                                      flag_self_consistent, restart_Knegf
     use memory_module,          only: reg_alloc_mem, reg_dealloc_mem,  &
                                       type_dbl, type_int
     use group_module,           only: parts
@@ -633,7 +634,9 @@ contains
    if (inode == ionode .and. iprint_init > 1) &
         write (io_lun, *) 'Done init_pseudo '
 
-   if(flag_diagonalisation) then
+   if (flag_diagonalisation.and. &
+    (.not.(.not.flag_self_consistent.and.dump_negf_data)).and. &
+    (.not.restart_Knegf)) then
       call init_blacs_pg
       call init_scalapack_format
    end if
@@ -1116,7 +1119,7 @@ contains
          flag_out_wf, wf_self_con, &
          flag_write_DOS, flag_neutral_atom, &
          atomf, sf, flag_LFD, nspin_SF, flag_diagonalisation, &
-         ne_in_cell, restart_Knegf
+         ne_in_cell, restart_Knegf, dump_negf_data
     use ion_electrostatic,   only: ewald, screened_ion_interaction
     use S_matrix_module,     only: get_S_matrix
     use GenComms,            only: my_barrier,end_comms,inode,ionode, &
@@ -1443,7 +1446,7 @@ contains
        end if
        !
     else ! Ab initio TB: vary only DM
-
+       write(io_lun,*) "----------- start non self conv"
        rebuild_KE_NL = .true.
        !build_X = .false
        if (flag_LFD .and. .not.read_option) then
@@ -1461,7 +1464,8 @@ contains
           wf_self_con=.true.
        endif
 
-       if (restart_Knegf) return  ! no need to Diagonalize H for negf calculation
+       if ((restart_Knegf).or.(dump_negf_data)) return 
+       ! no need to Diagonalize H for negf calculation (restart_K_negf) or get only initial H (dump_negf_data)
 
        if ( .not. restart_DM ) then
           record  = .false.   

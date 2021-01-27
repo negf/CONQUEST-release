@@ -642,6 +642,12 @@ module grid_solver
 	    if (inode.eq.ionode) write(io_lun,fmt='(A,3e24.12)') "init dl_mg with dxyz",dx,dy,dz
 
       call io_assign(mg_unit)
+
+      if (inode.eq.ionode) then        
+        open(unit = mg_unit, file = "dl_mg_report.out", action = "write", status = "replace")
+        close(mg_unit, status = "delete")
+      end if
+
       if (inode.le.inmax) call dl_mg_init	(n_grid_x,n_grid_y,n_grid_z,dx,dy,dz,bc,gs,ge,mg_comm,&
       & mg_unit,"dl_mg_report.out",errors_return = .true.,ierror=ierr)
       if (ierr.ne.0) then
@@ -649,8 +655,7 @@ module grid_solver
         write(io_lun,*) "dl_mg_init",trim(msg)
         stop
       end if
-
-
+            
       allocate(pot3(1:nglx,1:ngly,1:nglz),stat=ierr)
       if (ierr.ne.0) then
         write(0,*) "allocation error ",ierr
@@ -665,7 +670,7 @@ module grid_solver
 
 !~  dl_mg grid solver ----
       use dl_mg_mpi_header
-      use dl_mg
+      use dl_mg      
       use mpi
 !~  ----------------------
 
@@ -678,9 +683,11 @@ module grid_solver
     subroutine get_hartree_dlmg(rho,pot)
 
 
-      use global_module, only: io_lun,gridsolver_select,&
-                               gridsolver_bc, restart_Knegf,&
-                               negf_l_elec_dir,negf_r_elec_dir
+      use global_module, only: io_lun,gridsolver_select, &
+                               gridsolver_bc, restart_Knegf, &
+                               negf_l_elec_dir,negf_r_elec_dir, &
+                               dump_negf_data, flag_self_consistent, &
+                               flag_neutral_atom
       use datatypes
       use units
       use GenComms, ONLY : my_barrier, gmax,inode,ionode
@@ -703,6 +710,8 @@ module grid_solver
       integer :: ierr,q0
       integer :: counti,count_rate,countf
       character(DL_MG_MAX_ERROR_STRING) :: msg
+      character(256) :: file_hartree
+      logical :: l_exist
 
 
 
@@ -722,51 +731,73 @@ module grid_solver
 !~ in the dl_mg source code
       eps_rel=1d0
       eps=1d0
+      
+
+      if (restart_Knegf) then
+        if (flag_neutral_atom) then
+          file_hartree = "./hartree_pot_diff.plt"            
+        else
+          file_hartree = "./hartree_pot.plt"            
+        end if
+        inquire(file=trim(file_hartree), exist = l_exist)          
+        if (l_exist) call read_rho(pot3,trim(file_hartree))
+      end if
+              
 
       if (any(gridsolver_bc.eq.2)) then
-        call get_dirichlet(pot3(1:nglx,1:ngly,1:nglz),&
-        &trim(negf_l_elec_dir)//"/hartree_pot_diff.plt",&
-        &trim(negf_r_elec_dir)//"/hartree_pot_diff.plt")
+        if (flag_neutral_atom) then
+          call get_dirichlet(pot3(1:nglx,1:ngly,1:nglz),&
+            trim(negf_l_elec_dir)//"/hartree_pot_diff.plt",&
+            trim(negf_r_elec_dir)//"/hartree_pot_diff.plt")
+        else
+          call get_dirichlet(pot3(1:nglx,1:ngly,1:nglz),&
+            trim(negf_l_elec_dir)//"/hartree_pot.plt",&
+            trim(negf_r_elec_dir)//"/hartree_pot.plt")        
+        end if
       end if
 ! call dl_mg_solver twice, first with low convergence tolerance to avoid convergence issues. then restart with a higher convergence threshold.
 ! this is more stable. if the convergence tolerance is not reached, do one addional run of dl_mg_solver. (this requieres a slightly modified version of dl_mg)
       if (inode.le.inmax) then
 
-        pot3=-(pot3)/(4d0*pi)
-
+!~         pot3=-(pot3)/(4d0*pi)
+        rho3=-rho3*4d0*pi
+        
         res=0d0
-if (1.eq.2) then
-        tol=1e-6
+        tol=1e-8
 
         call system_clock(counti,count_rate)
-!~         if (inode.eq.ionode)  write(io_lun,fmt='(A,3e24.12)') "...first run..."
+
+!~         call dl_mg_solver(eps=eps, eps_mid=eps_rel, alpha=1d0, rho=rho3, &
+!~           pot=pot3, fd_order=4,	use_damping=.false., &
+!~           tol_res_rel=tol,&
+!~           tol_res_abs=tol,&
+!~           tol_pot_rel=tol,&
+!~           tol_pot_abs=tol,&          
+!~           mg_max_conv_rate = 0.95d0, &
+!~           max_iters_defco=150,&
+!~           max_iters_vcycle=50,&
+!~           v_iterations=(/ 2,1 /)*8,&
+!~           omega_sor=1.9d0,&
+!~           use_pot_in=.true.,res=res,ierror=ierr)
         call dl_mg_solver(eps=eps, eps_mid=eps_rel, alpha=1d0, rho=rho3, &
-       &pot=pot3, fd_order=2,  use_damping=.false., &
-       &tol_res_rel=tol,&
-       &tol_res_abs=tol,&
-       &tol_pot_rel=tol,&
-       &tol_pot_abs=tol,&
-       &max_iters_defco=40,&
-       &v_iterations=(/ 2,1 /)*8,&
-       &omega_sor=1.9d0,&
-       &use_pot_in=.true.,res=res,ierror=ierr)
-end if
-        tol=1e-9 ! i think this could be reduced.
-        call dl_mg_solver(eps=eps, eps_mid=eps_rel, alpha=1d0, rho=rho3, &
-       &pot=pot3, fd_order=4,	use_damping=.false., &
-       &tol_res_rel=tol,&
-       &tol_res_abs=tol,&
-       &tol_pot_rel=tol,&
-       &tol_pot_abs=tol,&
-       &max_iters_defco=512,&
-       &v_iterations=(/ 2,1 /)*8,&
-       &omega_sor=1.9d0,&
-       &use_pot_in=.true.,res=res,ierror=ierr)
+          pot=pot3, fd_order=4,	use_damping=.false., &  
+          tol_pot_rel=tol,&
+          tol_pot_abs=tol,&                 
+          mg_max_conv_rate = 0.95d0, &
+          max_iters_defco=150,&
+          max_iters_vcycle=50,&
+          v_iterations=(/ 2,1 /)*8,&
+          omega_sor=1.9d0,&
+          use_pot_in=.true.,res=res,ierror=ierr)
+       
+       
         if (ierr.ne.0) then
           call dl_mg_error_string	(ierr,msg)
           if (inode.eq.ionode)  write(io_lun,*) "dl_mg_solver: ",ierr,trim(msg)
         end if
       end if
+
+      rho3=-rho3/(4d0*pi)
 
       hmax=maxval(abs(res))
       call gmax(hmax)
@@ -776,8 +807,8 @@ end if
 
       call rearrange(pot,maxngrid,gs_packxb,gs_psendxb,gs_prxb,gs_unpackxb)
       call rearrange(rho,maxngrid,gs_packxb,gs_psendxb,gs_prxb,gs_unpackxb)
-
-      pot=-pot*4d0*pi
+  
+!~       pot=-pot*4d0*pi
       
       call io_close(mg_unit)
 

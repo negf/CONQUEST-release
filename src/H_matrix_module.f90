@@ -579,7 +579,9 @@ contains
                                            nspin, spin_factor,         &
                                            flag_pcc_global, area_ops,  &
                                            exx_alpha, exx_niter, exx_siter, &
-                                           flag_neutral_atom, gridsolver_use
+                                           flag_neutral_atom, gridsolver_use, &
+                                           restart_Knegf, dump_negf_data, &
+                                           flag_self_consistent
      
     use XC,                          only: get_xc_potential
     use GenBlas,                     only: copy, axpy, dot, rsum
@@ -612,6 +614,8 @@ contains
     use fft_module,                  only: fft3, hartree_factor,       &
                                            z_columns_node, i0
     use io_module,                   only: dump_locps
+    
+    use gridout_module,              only: grid_out_plt
     
 #ifdef GRIDSOLVER
     use grid_solver,                 only: get_hartree_gridsolver
@@ -731,6 +735,10 @@ contains
             grid_point_volume
        call gsum(hartree_energy_drho_atom_rho)
        delta_E_hartree = zero
+      if ((restart_Knegf).or. &
+        (.not.flag_self_consistent.and.dump_negf_data)) then
+        call grid_out_plt("hartree_pot_diff.plt","hartree potential",250,h_potential)
+      end if       
     else
        if (gridsolver_use) then
 #ifdef GRIDSOLVER
@@ -747,6 +755,10 @@ contains
        !
        ! correction term
        delta_E_hartree = - hartree_energy_total_rho
+      if ((restart_Knegf).or. &
+        (.not.flag_self_consistent.and.dump_negf_data)) then
+        call grid_out_plt("hartree_pot.plt","hartree potential",250,h_potential)
+      end if              
     end if
     !
     !

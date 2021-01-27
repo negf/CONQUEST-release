@@ -327,7 +327,7 @@ module gridout_module
 ! For ifort v17 (tested up to update 4) this can end up in a deadlock, version v16 or v18 work.
 ! Workaround would be to using mpi_file_write which is however noncollective and much slower than
 ! collective mpi_file_write_all
-    call mpi_file_write(ifh,buf,domain%groups_on_node*n_pts_in_block,MPI_DOUBLE,MPI_STATUS_IGNORE,ierr)
+    call MPI_FILE_WRITE(ifh,buf,domain%groups_on_node*n_pts_in_block,MPI_DOUBLE,MPI_STATUS_IGNORE,ierr)
 
     call MPI_FILE_CLOSE(ifh, ierr)
 
